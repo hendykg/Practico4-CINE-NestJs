@@ -1,0 +1,11 @@
+/* src/App.css */
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #141414;
+}
+
+main {
+  flex: 1;
+}
