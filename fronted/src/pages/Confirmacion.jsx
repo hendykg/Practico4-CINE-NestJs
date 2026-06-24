@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client.js';
 import { formatDateTime } from '../utils/date.js';
+import { formatSeat } from '../utils/seats.js';
 
 export default function Confirmacion() {
   const navigate = useNavigate();
@@ -41,7 +42,7 @@ export default function Confirmacion() {
       <p>Asientos seleccionados: {seleccion.asientos.length}</p>
       <ul>
         {seleccion.asientos.map((seat) => (
-          <li key={`${seat.fila}-${seat.columna}`}>Fila {seat.fila}, Columna {seat.columna}</li>
+          <li key={`${seat.fila}-${seat.columna}`}>{formatSeat(seat)}</li>
         ))}
       </ul>
       <button onClick={confirmarCompra} style={{ width: '100%', padding: '15px', background: '#E50914', color: 'white', border: 'none', marginTop: '20px', cursor: 'pointer', fontWeight: 'bold' }}>

@@ -73,22 +73,28 @@ export default function DetallePelicula() {
         <h2 className="h4 text-danger mb-3">Funciones disponibles</h2>
 
         {pelicula.funciones?.length ? (
-          <div className="row g-3">
+          <div className="d-flex flex-column gap-3">
             {pelicula.funciones.map((funcion) => (
-              <div className="col-md-6" key={funcion.id}>
-                <div className="border border-secondary rounded p-3 h-100 bg-dark">
-                  <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                    <span className="badge text-bg-danger px-3 py-2 fs-6">{formatTime(funcion.fechaHora)}</span>
-                    <span className="text-light">{formatDate(funcion.fechaHora)}</span>
+              <div key={funcion.id} className="border border-secondary rounded p-3 bg-dark">
+                <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                  <div>
+                    <div className="fw-bold">{funcion.sala?.nombre}</div>
+                    <div className="text-secondary small">{formatDate(funcion.fechaHora)}</div>
                   </div>
-                  <p className="mb-2">
-                    Sala: <strong>{funcion.sala?.nombre}</strong>
-                  </p>
-                  <p className="mb-3">
-                    Precio: <strong>Bs. {funcion.precioEntrada}</strong>
-                  </p>
-                  <button className="btn btn-danger w-100" onClick={() => seleccionarFuncion(funcion)}>
-                    Elegir funcion de las {formatTime(funcion.fechaHora)}
+                  <div className="text-end">
+                    <div className="text-danger fw-bold">Bs. {funcion.precioEntrada}</div>
+                    <div className="text-secondary small">Entrada general</div>
+                  </div>
+                </div>
+
+                <div className="d-flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline-light"
+                    onClick={() => seleccionarFuncion(funcion)}
+                    style={{ minWidth: '110px', fontWeight: 'bold' }}
+                  >
+                    {formatTime(funcion.fechaHora)}
                   </button>
                 </div>
               </div>

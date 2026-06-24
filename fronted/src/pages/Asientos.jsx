@@ -4,6 +4,7 @@ import apiClient from '../api/client.js';
 import '../assets/css/haciendo.css';
 import '../assets/css/index.css';
 import { formatDateTime } from '../utils/date.js';
+import { getSeatRowLabel } from '../utils/seats.js';
 
 export default function Asientos() {
   const navigate = useNavigate();
@@ -97,7 +98,7 @@ export default function Asientos() {
 
             return (
               <div key={fila} className="seat-row">
-                <span style={{ width: '20px', color: '#aaa', marginRight: '10px' }}>{fila}</span>
+                <span style={{ width: '20px', color: '#aaa', marginRight: '10px' }}>{getSeatRowLabel(fila)}</span>
                 {Array.from({ length: totalColumnas }, (_, columnaIndex) => {
                   const columna = columnaIndex + 1;
                   const seatId = `${fila}-${columna}`;
@@ -112,7 +113,7 @@ export default function Asientos() {
                       key={seatId}
                       className={seatClass}
                       onClick={() => handleSeatClick(fila, columna)}
-                      title={`Fila ${fila}, Asiento ${columna}`}
+                      title={`Fila ${getSeatRowLabel(fila)}, Butaca ${columna}`}
                     />
                   );
                 })}
