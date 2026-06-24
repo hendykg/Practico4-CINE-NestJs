@@ -1,9 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { SalasService } from './salas.service';
 import { CreateSalaDto } from './dto/create-sala.dto';
 import { UpdateSalaDto } from './dto/update-sala.dto';
+import { AppAuthGuard, RolesGuard } from '../../common/auth.guard';
+import { Roles } from '../../common/roles.decorator';
 
 @Controller('salas')
+@UseGuards(AppAuthGuard, RolesGuard)
+@Roles('administrador')
 export class SalasController {
   constructor(private readonly salasService: SalasService) {}
 

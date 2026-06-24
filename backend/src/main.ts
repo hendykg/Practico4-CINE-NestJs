@@ -1,18 +1,31 @@
-// src/main.ts (En tu Backend)
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import * as express from 'express';
+import { mkdirSync } from 'fs';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const uploadsPath = join(process.cwd(), 'uploads');
 
-  // 1. SOLUCIÓN CRÍTICA: Permite que React (puerto 5173) se comunique con NestJS (puerto 3000)
+  mkdirSync(uploadsPath, { recursive: true });
+
   app.enableCors({
     origin: 'http://localhost:5173',
     credentials: true,
   });
 
-  // 2. SOLUCIÓN CRÍTICA: Le añade la palabra "/api" a todas tus rutas automáticamente
   app.setGlobalPrefix('api');
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
+  app.use('/uploads', express.static(uploadsPath));
 
   await app.listen(3000);
 }
