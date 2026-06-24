@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import apiClient from '../api/client.js';
+import { formatDateTime } from '../utils/date.js';
 
 export default function MisReservas() {
   const [reservas, setReservas] = useState([]);
@@ -35,9 +36,9 @@ export default function MisReservas() {
           <div key={reserva.id} style={{ background: '#222', padding: '20px', margin: '15px 0', color: 'white', borderRadius: '8px' }}>
             <h3>{reserva.pelicula?.titulo}</h3>
             <p>Sala: {reserva.sala?.nombre}</p>
-            <p>Funcion: {reserva.funcion?.fechaHora ? new Date(reserva.funcion.fechaHora).toLocaleString() : '-'}</p>
+            <p>Funcion: {reserva.funcion?.fechaHora ? formatDateTime(reserva.funcion.fechaHora) : '-'}</p>
             <p>Asiento: Fila {reserva.fila}, Columna {reserva.columna}</p>
-            <p>Reservado el: {new Date(reserva.fechaReserva).toLocaleString()}</p>
+            <p>Reservado el: {formatDateTime(reserva.fechaReserva)}</p>
           </div>
         ))
       )}

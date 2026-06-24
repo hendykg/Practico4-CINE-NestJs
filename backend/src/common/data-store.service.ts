@@ -108,6 +108,20 @@ export class DataStoreService {
         fechaHora: '2026-06-24T21:00:00.000Z',
         precioEntrada: 28,
       },
+      {
+        id: 5,
+        peliculaId: 2,
+        salaId: 1,
+        fechaHora: '2026-06-25T21:50:00.000Z',
+        precioEntrada: 32,
+      },
+      {
+        id: 6,
+        peliculaId: 3,
+        salaId: 1,
+        fechaHora: '2026-06-25T23:40:00.000Z',
+        precioEntrada: 30,
+      },
     ];
 
     this.reservas = [

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client.js';
 import '../assets/css/haciendo.css';
 import '../assets/css/index.css';
+import { formatDateTime } from '../utils/date.js';
 
 export default function Asientos() {
   const navigate = useNavigate();
@@ -82,7 +83,7 @@ export default function Asientos() {
   return (
     <div className="cinema">
       <h2 className="text-center">{movieInfo.movie.titulo}</h2>
-      <p className="text-center text-light">Funcion: {new Date(movieInfo.showtime.fechaHora).toLocaleString()}</p>
+      <p className="text-center text-light">Funcion: {formatDateTime(movieInfo.showtime.fechaHora)}</p>
       <p className="text-center text-light">Sala: {movieInfo.showtime.sala?.nombre}</p>
 
       <div className="Screen">PANTALLA</div>

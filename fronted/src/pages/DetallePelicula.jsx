@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../api/client.js';
 import { useAuth } from '../components/AuthContext.jsx';
+import { formatDate, formatTime } from '../utils/date.js';
 import { buildMediaUrl } from '../utils/media.js';
 
 export default function DetallePelicula() {
@@ -76,18 +77,18 @@ export default function DetallePelicula() {
             {pelicula.funciones.map((funcion) => (
               <div className="col-md-6" key={funcion.id}>
                 <div className="border border-secondary rounded p-3 h-100 bg-dark">
+                  <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <span className="badge text-bg-danger px-3 py-2 fs-6">{formatTime(funcion.fechaHora)}</span>
+                    <span className="text-light">{formatDate(funcion.fechaHora)}</span>
+                  </div>
                   <p className="mb-2">
                     Sala: <strong>{funcion.sala?.nombre}</strong>
-                  </p>
-                  <p className="mb-2">
-                    Fecha y hora:{' '}
-                    <strong>{new Date(funcion.fechaHora).toLocaleString()}</strong>
                   </p>
                   <p className="mb-3">
                     Precio: <strong>Bs. {funcion.precioEntrada}</strong>
                   </p>
                   <button className="btn btn-danger w-100" onClick={() => seleccionarFuncion(funcion)}>
-                    Seleccionar funcion
+                    Elegir funcion de las {formatTime(funcion.fechaHora)}
                   </button>
                 </div>
               </div>

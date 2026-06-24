@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client.js';
+import { formatDateTime } from '../utils/date.js';
 
 export default function Confirmacion() {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ export default function Confirmacion() {
     <div style={{ maxWidth: '540px', margin: '40px auto', background: '#222', padding: '30px', color: 'white', borderRadius: '8px' }}>
       <h2>Resumen de Compra</h2>
       <p>Pelicula: {movieSelection?.movie?.titulo || 'Sin pelicula'}</p>
-      <p>Funcion: {movieSelection?.showtime?.fechaHora ? new Date(movieSelection.showtime.fechaHora).toLocaleString() : 'Sin funcion'}</p>
+      <p>Funcion: {movieSelection?.showtime?.fechaHora ? formatDateTime(movieSelection.showtime.fechaHora) : 'Sin funcion'}</p>
       <p>Total a pagar: Bs. {seleccion.total || 0}</p>
       <p>Asientos seleccionados: {seleccion.asientos.length}</p>
       <ul>
