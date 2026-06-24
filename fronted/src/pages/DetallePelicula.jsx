@@ -1,120 +1,101 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../api/client.js';
-import '../assets/css/index.css';
+import { useAuth } from '../components/AuthContext.jsx';
+import { buildMediaUrl } from '../utils/media.js';
 
 export default function DetallePelicula() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [pelicula, setPelicula] = useState(null);
-  const [diaSeleccionado, setDiaSeleccionado] = useState('JUE 18/JUN');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchDetalle = async () => {
+      setLoading(true);
+
       try {
-        const res = await apiClient.get(`/peliculas/${id}`);
-        setPelicula(res.data);
-      } catch (error) {
-        console.error("Error al obtener película", error);
+        const response = await apiClient.get(`/peliculas/${id}`);
+        setPelicula(response.data);
+      } catch (_error) {
+        alert('No se pudo cargar el detalle de la pelicula.');
+      } finally {
+        setLoading(false);
       }
     };
+
     fetchDetalle();
   }, [id]);
 
   const seleccionarFuncion = (funcion) => {
-    if (!localStorage.getItem('auth_token')) {
-      alert("Debes iniciar sesión para reservar entradas.");
+    if (!isAuthenticated) {
+      alert('Debes iniciar sesion para reservar entradas.');
       navigate('/login');
       return;
     }
+
     sessionStorage.setItem('movieSelection', JSON.stringify({ movie: pelicula, showtime: funcion }));
     navigate('/asientos');
   };
 
-  if (!pelicula) return <h2 className="text-center mt-5" style={{ color: 'white' }}>Cargando detalles...</h2>;
+  if (loading) {
+    return <p className="text-white">Cargando detalles...</p>;
+  }
 
-  const dias = [
-    { label: 'JUE', fecha: '18/JUN' },
-    { label: 'VIE', fecha: '19/JUN' },
-    { label: 'SÁB', fecha: '20/JUN' },
-    { label: 'DOM', fecha: '21/JUN' },
-    { label: 'LUN', fecha: '22/JUN' }
-  ];
+  if (!pelicula) {
+    return <p className="text-white">No se encontro la pelicula.</p>;
+  }
 
   return (
-    <div style={{ display: 'flex', gap: '40px', maxWidth: '1100px', margin: '40px auto', padding: '20px', color: 'white' }}>
-      {/* Columna Izquierda: Póster */}
-      <div style={{ flex: '1', maxWidth: '320px' }}>
-        <h1 style={{ fontSize: '2.5rem', marginBottom: '20px', textTransform: 'uppercase', fontWeight: 'bold' }}>{pelicula.titulo}</h1>
-        <img src={pelicula.imagenPoster} alt={pelicula.titulo} style={{ width: '100%', borderRadius: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.8)' }} />
-        <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
-          <span style={{ background: '#333', padding: '5px 15px', borderRadius: '4px', fontSize: '0.9rem' }}>{pelicula.duracion} min</span>
-          <span style={{ background: '#E50914', padding: '5px 15px', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold' }}>{pelicula.clasificacion}</span>
-        </div>
-        <span style={{ display: 'inline-block', marginTop: '15px', background: '#222', padding: '5px 10px', borderRadius: '4px', border: '1px solid #444' }}>🎬 {pelicula.genero}</span>
-        <p style={{ marginTop: '20px', color: '#ccc', lineHeight: '1.6' }}>{pelicula.sinopsis}</p>
+    <div className="row g-4 text-white">
+      <div className="col-lg-4">
+        <img
+          src={buildMediaUrl(pelicula.imagenPoster)}
+          alt={pelicula.titulo}
+          className="img-fluid rounded shadow"
+        />
       </div>
 
-      {/* Columna Derecha: Horarios al estilo de tu Imagen */}
-      <div style={{ flex: '2' }}>
-        <h2 style={{ fontSize: '2rem', marginBottom: '20px', letterSpacing: '1px' }}>HORARIOS</h2>
-        
-        {/* Selector de Días */}
-        <div style={{ display: 'flex', background: '#1c1c1c', borderRadius: '6px', padding: '5px', gap: '5px', marginBottom: '20px' }}>
-          {dias.map((d, i) => {
-            const key = `${d.label} ${d.fecha}`;
-            const activo = diaSeleccionado === key;
-            return (
-              <button
-                key={i}
-                onClick={() => setDiaSeleccionado(key)}
-                style={{
-                  flex: 1, padding: '12px', background: activo ? '#fff' : 'transparent',
-                  color: activo ? '#000' : '#fff', border: 'none', borderRadius: '4px',
-                  cursor: 'pointer', fontWeight: 'bold', textAlign: 'center', transition: '0.3s'
-                }}
-              >
-                <div style={{ fontSize: '0.8rem', opacity: activo ? 1 : 0.6 }}>{d.label}</div>
-                <div style={{ fontSize: '1rem' }}>{d.fecha}</div>
-              </button>
-            );
-          })}
+      <div className="col-lg-8">
+        <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
+          <h1 className="mb-0">{pelicula.titulo}</h1>
+          <span className="badge text-bg-danger">{pelicula.clasificacion}</span>
         </div>
 
-        {/* Filtros decorativos */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '30px' }}>
-          <select style={{ background: '#222', color: 'white', padding: '10px', border: '1px solid #444', borderRadius: '4px' }}><option>Formatos</option></select>
-          <select style={{ background: '#222', color: 'white', padding: '10px', border: '1px solid #444', borderRadius: '4px' }}><option>Idioma</option></select>
-        </div>
+        <p className="mb-2">Duracion: {pelicula.duracion} min</p>
+        <p className="mb-3">Genero: {pelicula.genero}</p>
+        <p className="text-light">{pelicula.sinopsis}</p>
 
-        <h3 style={{ fontSize: '1.2rem', color: '#E50914', marginBottom: '15px', textTransform: 'uppercase' }}>Horarios en Cinemark Ventura Mall</h3>
-        <p style={{ fontSize: '0.9rem', color: '#aaa', marginBottom: '20px' }}>📍 Dirección: 4to anillo esq. Av. San Martin, Ventura mall 2do piso.</p>
+        <hr className="border-secondary" />
 
-        {/* Grilla de Funciones cargadas desde tu Backend */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '15px' }}>
-          {pelicula.funciones && pelicula.funciones.length > 0 ? (
-            pelicula.funciones.map(funcion => (
-              <div
-                key={funcion.id}
-                onClick={() => seleccionarFuncion(funcion)}
-                className="time-slot"
-                style={{
-                  background: '#222', padding: '15px', borderRadius: '6px', cursor: 'pointer',
-                  border: '1px solid #333', textAlign: 'center', transition: '0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.borderColor = '#E50914'}
-                onMouseOut={(e) => e.currentTarget.style.borderColor = '#333'}
-              >
-                <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#fff' }}>
-                  {new Date(funcion.fechaHora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}hs
+        <h2 className="h4 text-danger mb-3">Funciones disponibles</h2>
+
+        {pelicula.funciones?.length ? (
+          <div className="row g-3">
+            {pelicula.funciones.map((funcion) => (
+              <div className="col-md-6" key={funcion.id}>
+                <div className="border border-secondary rounded p-3 h-100 bg-dark">
+                  <p className="mb-2">
+                    Sala: <strong>{funcion.sala?.nombre}</strong>
+                  </p>
+                  <p className="mb-2">
+                    Fecha y hora:{' '}
+                    <strong>{new Date(funcion.fechaHora).toLocaleString()}</strong>
+                  </p>
+                  <p className="mb-3">
+                    Precio: <strong>Bs. {funcion.precioEntrada}</strong>
+                  </p>
+                  <button className="btn btn-danger w-100" onClick={() => seleccionarFuncion(funcion)}>
+                    Seleccionar funcion
+                  </button>
                 </div>
-                <div style={{ fontSize: '0.85rem', color: '#E50914', marginTop: '5px' }}>Bs. {funcion.precioEntrada}</div>
               </div>
-            ))
-          ) : (
-            <p style={{ color: '#aaa', fontStyle: 'italic' }}>No hay funciones de NestJS para este día.</p>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <p>No hay funciones disponibles para esta pelicula.</p>
+        )}
       </div>
     </div>
   );

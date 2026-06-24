@@ -23,7 +23,7 @@
   gap: 10px;
 }
 
-.row {
+.seat-row {
   display: flex;
   gap: 8px;
   margin-bottom: 8px;

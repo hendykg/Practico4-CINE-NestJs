@@ -1,7 +1,19 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
+import { AppAuthGuard } from '../common/auth.guard';
+import { CurrentUser } from '../common/current-user.decorator';
+import { UsuarioAutenticado } from '../common/app.types';
 
 @Controller('auth')
 export class AuthController {
@@ -19,9 +31,16 @@ export class AuthController {
     return this.authService.login(loginAuthDto);
   }
 
+  @Get('me')
+  @UseGuards(AppAuthGuard)
+  me(@CurrentUser() usuario: UsuarioAutenticado) {
+    return this.authService.me(usuario);
+  }
+
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  logout() {
-    return this.authService.logout();
+  @UseGuards(AppAuthGuard)
+  logout(@Req() request: { authToken: string }) {
+    return this.authService.logout(request.authToken);
   }
 }

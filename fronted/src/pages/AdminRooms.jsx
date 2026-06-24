@@ -1,93 +1,134 @@
-import { useState, useEffect } from 'react';
-import { Container, Form, Button, Table } from 'react-bootstrap';
+import { useEffect, useState } from 'react';
+import { Button, Container, Form, Table } from 'react-bootstrap';
 import apiClient from '../api/client.js';
+
+const initialForm = { nombre: '', filas: '', columnas: '' };
 
 export default function AdminRooms() {
   const [rooms, setRooms] = useState([]);
-  const [formData, setFormData] = useState({ nombre: '', filas: '', columnas: '' });
+  const [formData, setFormData] = useState(initialForm);
+  const [editingId, setEditingId] = useState(null);
 
   const fetchRooms = async () => {
+    const response = await apiClient.get('/salas');
+    setRooms(response.data);
+  };
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  const resetForm = () => {
+    setEditingId(null);
+    setFormData(initialForm);
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    const payload = {
+      nombre: formData.nombre,
+      filas: Number(formData.filas),
+      columnas: Number(formData.columnas),
+    };
+
     try {
-      const res = await apiClient.get('/salas');
-      setRooms(res.data);
-    } catch (error) { 
-      console.error("Error al traer salas:", error); 
+      if (editingId) {
+        await apiClient.patch(`/salas/${editingId}`, payload);
+        alert('Sala actualizada correctamente.');
+      } else {
+        await apiClient.post('/salas', payload);
+        alert('Sala creada correctamente.');
+      }
+
+      resetForm();
+      fetchRooms();
+    } catch (error) {
+      alert(error.response?.data?.message || 'No se pudo guardar la sala.');
     }
   };
 
-  useEffect(() => { fetchRooms(); }, []);
+  const handleEdit = (room) => {
+    setEditingId(room.id);
+    setFormData({
+      nombre: room.nombre,
+      filas: String(room.filas),
+      columnas: String(room.columnas),
+    });
+  };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleDelete = async (roomId) => {
+    if (!window.confirm('¿Eliminar esta sala y sus funciones asociadas?')) {
+      return;
+    }
+
     try {
-      const payload = {
-        nombre: formData.nombre,
-        filas: Number(formData.filas),
-        columnas: Number(formData.columnas)
-      };
-      
-      await apiClient.post('/salas', payload);
+      await apiClient.delete(`/salas/${roomId}`);
       fetchRooms();
-      alert('Sala creada exitosamente en NestJS');
-      setFormData({ nombre: '', filas: '', columnas: '' });
     } catch (error) {
-      alert('Error al crear sala en el servidor');
+      alert(error.response?.data?.message || 'No se pudo eliminar la sala.');
     }
   };
 
   return (
-    <Container className="mt-4">
-      <h2>Gestión de Salas</h2>
+    <Container className="mt-4 text-white">
+      <h2>Gestion de Salas</h2>
 
       <Form onSubmit={handleSubmit} className="mb-4 p-3 border rounded bg-light text-dark">
         <Form.Group className="mb-3">
-          <Form.Label>Nombre o Número de Sala</Form.Label>
-          <Form.Control 
-            type="text" 
-            value={formData.nombre} 
-            onChange={e => setFormData({...formData, nombre: e.target.value})} 
-            required 
-          />
+          <Form.Label>Nombre</Form.Label>
+          <Form.Control value={formData.nombre} onChange={(event) => setFormData({ ...formData, nombre: event.target.value })} required />
         </Form.Group>
+
         <Form.Group className="mb-3">
-          <Form.Label>Cantidad de Filas</Form.Label>
-          <Form.Control 
-            type="number" 
-            min="1"
-            value={formData.filas} 
-            onChange={e => setFormData({...formData, filas: e.target.value})} 
-            required 
-          />
+          <Form.Label>Filas</Form.Label>
+          <Form.Control type="number" min="1" value={formData.filas} onChange={(event) => setFormData({ ...formData, filas: event.target.value })} required />
         </Form.Group>
+
         <Form.Group className="mb-3">
-          <Form.Label>Cantidad de Columnas</Form.Label>
-          <Form.Control 
-            type="number" 
-            min="1"
-            value={formData.columnas} 
-            onChange={e => setFormData({...formData, columnas: e.target.value})} 
-            required 
-          />
+          <Form.Label>Columnas</Form.Label>
+          <Form.Control type="number" min="1" value={formData.columnas} onChange={(event) => setFormData({ ...formData, columnas: event.target.value })} required />
         </Form.Group>
-        <Button type="submit" variant="primary">Crear Sala</Button>
+
+        <div className="d-flex gap-2">
+          <Button type="submit" variant="danger">
+            {editingId ? 'Guardar cambios' : 'Crear sala'}
+          </Button>
+          {editingId && (
+            <Button type="button" variant="secondary" onClick={resetForm}>
+              Cancelar edicion
+            </Button>
+          )}
+        </div>
       </Form>
 
-      <Table striped bordered hover variant="dark">
+      <Table striped bordered hover variant="dark" responsive>
         <thead>
           <tr>
             <th>Nombre</th>
             <th>Filas</th>
             <th>Columnas</th>
-            <th>Capacidad Total</th>
+            <th>Capacidad total</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
-          {rooms.map(room => (
+          {rooms.map((room) => (
             <tr key={room.id}>
               <td>{room.nombre}</td>
               <td>{room.filas}</td>
               <td>{room.columnas}</td>
-              <td>{room.capacidadTotal} Asientos</td>
+              <td>{room.capacidadTotal}</td>
+              <td>
+                <div className="d-flex gap-2">
+                  <Button size="sm" variant="warning" onClick={() => handleEdit(room)}>
+                    Editar
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => handleDelete(room.id)}>
+                    Eliminar
+                  </Button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>

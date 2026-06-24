@@ -2,18 +2,19 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from './AuthContext.jsx';
 
 export default function ProtectedRoute({ requiredRole }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
-  // Si no está logueado, directo al login
+  if (isLoading) {
+    return <div className="text-center text-white py-5">Cargando...</div>;
+  }
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // Si el rol del usuario no coincide con el requerido por la ruta, lo devuelve al inicio
   if (requiredRole && user?.rol !== requiredRole) {
     return <Navigate to="/" replace />;
   }
 
-  // Si pasa las validaciones, renderiza la página interna
   return <Outlet />;
 }

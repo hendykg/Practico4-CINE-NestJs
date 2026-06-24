@@ -1,147 +1,140 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '../api/client.js'; 
+import apiClient from '../api/client.js';
 import '../assets/css/haciendo.css';
 import '../assets/css/index.css';
 
 export default function Asientos() {
   const navigate = useNavigate();
-  const [movieInfo, setMovieInfo] = useState({});
+  const [movieInfo, setMovieInfo] = useState(null);
   const [occupiedSeats, setOccupiedSeats] = useState([]);
   const [selectedSeats, setSelectedSeats] = useState([]);
-
-  // Datos simulados de la capacidad de la sala si no vienen del backend (Ej: 8 filas x 10 columnas)
-  const totalFilas = movieInfo?.showtime?.sala?.filas || 8;
-  const totalColumnas = movieInfo?.showtime?.sala?.columnas || 10;
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const sessionMovie = JSON.parse(sessionStorage.getItem('movieSelection') || '{}');
+    const sessionMovie = JSON.parse(sessionStorage.getItem('movieSelection') || 'null');
+
+    if (!sessionMovie?.showtime?.id) {
+      navigate('/');
+      return;
+    }
+
     setMovieInfo(sessionMovie);
 
     const fetchOccupiedSeats = async () => {
-      if (sessionMovie?.showtime?.id) {
-        try {
-          // Apunta a /api/reservas del controlador de NestJS
-          const res = await apiClient.get('/reservas'); 
-          
-          // Filtramos las reservas asociadas a esta función exacta
-          const reservasFuncion = res.data.filter(r => r.funcionId === sessionMovie.showtime.id);
-          
-          // Convierte { fila: 5, columna: 6 } al formato string "5-6" para la grilla visual
-          const ocupados = reservasFuncion.map(seat => `${seat.fila}-${seat.columna}`);
-          setOccupiedSeats(ocupados);
-        } catch (error) {
-          console.error("Error cargando asientos desde NestJS", error);
-        }
+      try {
+        const response = await apiClient.get(`/reservas/ocupados/funcion/${sessionMovie.showtime.id}`);
+        setOccupiedSeats(response.data.map((seat) => `${seat.fila}-${seat.columna}`));
+      } catch (_error) {
+        alert('No se pudieron cargar los asientos ocupados.');
+      } finally {
+        setLoading(false);
       }
     };
-    
+
     fetchOccupiedSeats();
+  }, [navigate]);
 
-    const savedSelection = JSON.parse(sessionStorage.getItem('seleccionAsientos') || '{}');
-    if (savedSelection.asientos) {
-      setSelectedSeats(savedSelection.asientos);
-    }
-  }, []);
+  if (!movieInfo) {
+    return null;
+  }
 
-  // Lógica para seleccionar/deseleccionar un asiento un clic a la vez
+  const totalFilas = movieInfo.showtime?.sala?.filas || 0;
+  const totalColumnas = movieInfo.showtime?.sala?.columnas || 0;
+
   const handleSeatClick = (fila, columna) => {
     const seatId = `${fila}-${columna}`;
-    if (occupiedSeats.includes(seatId)) return; // Si está ocupado, no hace nada
 
-    if (selectedSeats.includes(seatId)) {
-      setSelectedSeats(selectedSeats.filter(s => s !== seatId));
-    } else {
-      setSelectedSeats([...selectedSeats, seatId]);
+    if (occupiedSeats.includes(seatId)) {
+      return;
     }
+
+    setSelectedSeats((current) =>
+      current.includes(seatId)
+        ? current.filter((seat) => seat !== seatId)
+        : [...current, seatId],
+    );
   };
 
   const handleConfirmar = () => {
     if (selectedSeats.length === 0) {
-      alert('Por favor, selecciona al menos un asiento.');
+      alert('Debes seleccionar al menos un asiento.');
       return;
     }
 
-    // Mapeamos los strings "5-6" de vuelta a objetos { row: 5, column: 6 } para el DTO
-    const asientosMapeados = selectedSeats.map(seat => {
+    const asientos = selectedSeats.map((seat) => {
       const [fila, columna] = seat.split('-');
-      return { row: Number(fila), column: Number(columna) };
+      return { fila: Number(fila), columna: Number(columna) };
     });
 
-    const precioEntrada = Number(movieInfo?.showtime?.precioEntrada || 30);
-    const totalPagar = selectedSeats.length * precioEntrada;
-
-    // Guardamos la estructura limpia para la página de Confirmación
-    sessionStorage.setItem('seleccionAsientos', JSON.stringify({
-      showtime_id: movieInfo.showtime.id,
-      seats: asientosMapeados,
-      total: totalPagar
-    }));
+    sessionStorage.setItem(
+      'seleccionAsientos',
+      JSON.stringify({
+        funcionId: movieInfo.showtime.id,
+        asientos,
+        total: asientos.length * Number(movieInfo.showtime.precioEntrada),
+      }),
+    );
 
     navigate('/confirmacion');
   };
 
-  // Renderizar la matriz gráfica de asientos basados en la configuración de la sala
-  const renderGrid = () => {
-    const filasAgrupadas = [];
-    for (let f = 1; f <= totalFilas; f++) {
-      const asientosFila = [];
-      for (let c = 1; c <= totalColumnas; c++) {
-        const seatId = `${f}-${c}`;
-        let claseAsiento = 'seat';
-
-        if (occupiedSeats.includes(seatId)) {
-          claseAsiento += ' occupied';
-        } else if (selectedSeats.includes(seatId)) {
-          claseAsiento += ' selected';
-        }
-
-        asientosFila.push(
-          <div
-            key={seatId}
-            className={claseAsiento}
-            onClick={() => handleSeatClick(f, c)}
-            title={`Fila ${f}, Asiento ${c}`}
-          />
-        );
-      }
-      filasAgrupadas.push(
-        <div key={f} className="row">
-          <span style={{ width: '20px', color: '#aaa', marginRight: '10px' }}>{f}</span>
-          {asientosFila}
-        </div>
-      );
-    }
-    return filasAgrupadas;
-  };
-
   return (
     <div className="cinema">
-      <h2 className="text-center">{movieInfo?.movie?.titulo || 'Película'}</h2>
-      <p className="text-center text-muted">
-        Función: {movieInfo?.showtime?.fechaHora ? new Date(movieInfo.showtime.fechaHora).toLocaleString() : ''}
-      </p>
+      <h2 className="text-center">{movieInfo.movie.titulo}</h2>
+      <p className="text-center text-light">Funcion: {new Date(movieInfo.showtime.fechaHora).toLocaleString()}</p>
+      <p className="text-center text-light">Sala: {movieInfo.showtime.sala?.nombre}</p>
 
       <div className="Screen">PANTALLA</div>
 
-      <div className="map">
-        {renderGrid()}
-      </div>
+      {loading ? (
+        <p className="text-white text-center">Cargando asientos...</p>
+      ) : (
+        <div className="map">
+          {Array.from({ length: totalFilas }, (_, filaIndex) => {
+            const fila = filaIndex + 1;
+
+            return (
+              <div key={fila} className="seat-row">
+                <span style={{ width: '20px', color: '#aaa', marginRight: '10px' }}>{fila}</span>
+                {Array.from({ length: totalColumnas }, (_, columnaIndex) => {
+                  const columna = columnaIndex + 1;
+                  const seatId = `${fila}-${columna}`;
+                  const seatClass = occupiedSeats.includes(seatId)
+                    ? 'seat occupied'
+                    : selectedSeats.includes(seatId)
+                      ? 'seat selected'
+                      : 'seat';
+
+                  return (
+                    <div
+                      key={seatId}
+                      className={seatClass}
+                      onClick={() => handleSeatClick(fila, columna)}
+                      title={`Fila ${fila}, Asiento ${columna}`}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="legend justify-content-center">
         <div className="legend-item"><div className="seat"></div><span>Disponible</span></div>
-        <div className="legend-item"><div className="seat selected"></div><span>Tu Selección</span></div>
+        <div className="legend-item"><div className="seat selected"></div><span>Seleccionado</span></div>
         <div className="legend-item"><div className="seat occupied"></div><span>Ocupado</span></div>
       </div>
 
       <div className="text-center mt-4" style={{ color: 'white' }}>
         <p>Asientos seleccionados: <strong>{selectedSeats.length}</strong></p>
-        <p>Precio por entrada: <strong>Bs. {movieInfo?.showtime?.precioEntrada || 0}</strong></p>
-        <h4 className="text-danger">Total: Bs. {selectedSeats.length * Number(movieInfo?.showtime?.precioEntrada || 0)}</h4>
+        <p>Precio por entrada: <strong>Bs. {movieInfo.showtime.precioEntrada}</strong></p>
+        <h4 className="text-danger">Total: Bs. {selectedSeats.length * Number(movieInfo.showtime.precioEntrada)}</h4>
       </div>
 
       <button className="btn-confirmar mt-3" onClick={handleConfirmar}>
-        Ir al Resumen de Reserva
+        Ir al resumen de reserva
       </button>
     </div>
   );
