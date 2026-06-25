@@ -1,26 +1,34 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, Unique } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
 import { Funcion } from '../../funciones/entities/funcione.entity';
 import { Usuario } from '../../../auth/entities/auth.entity';
 
 @Entity('reservas')
 // Regla de negocio: Un asiento no puede reservarse dos veces para la misma función
-@Unique(['funcion', 'filaAsiento', 'columnaAsiento'])
+@Unique(['funcionId', 'fila', 'columna'])
 export class Reserva {
   @PrimaryGeneratedColumn()
   id!: number;
 
   @Column('int')
-  filaAsiento!: number;
+  funcionId!: number;
 
   @Column('int')
-  columnaAsiento!: number;
+  usuarioId!: number;
 
-  @Column('timestamp', { default: () => 'CURRENT_TIMESTAMP' })
+  @Column('int')
+  fila!: number;
+
+  @Column('int')
+  columna!: number;
+
+  @Column('datetime', { default: () => 'CURRENT_TIMESTAMP' })
   fechaReserva!: Date;
 
-  @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Usuario, (usuario) => usuario.reservas, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'usuarioId' })
   usuario!: Usuario; // Usuario logueado que hizo la reserva
 
   @ManyToOne(() => Funcion, (funcion) => funcion.reservas, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'funcionId' })
   funcion!: Funcion;
 }

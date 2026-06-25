@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Reserva } from '../../modulos/reservas/entities/reserva.entity';
+import { Sesion } from './sesion.entity';
 
 @Entity('usuarios')
 export class Usuario {
@@ -13,11 +14,14 @@ export class Usuario {
   email!: string;
 
   @Column()
-  contrasena!: string;
+  contrasenaHash!: string;
 
   @Column({ default: 'cliente' }) // 'cliente' o 'administrador'
   rol!: string;
 
   @OneToMany(() => Reserva, (reserva) => reserva.usuario)
   reservas!: Reserva[];
+
+  @OneToMany(() => Sesion, (sesion) => sesion.usuario)
+  sesiones!: Sesion[];
 }

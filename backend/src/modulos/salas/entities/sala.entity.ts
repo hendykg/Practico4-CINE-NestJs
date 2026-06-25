@@ -1,24 +1,24 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Funcion } from '../../funciones/entities/funcione.entity';
 
 @Entity('salas')
 export class Sala {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  nombre: string; // Ej: "Sala 1", "Sala VIP"
+  nombre!: string; // Ej: "Sala 1", "Sala VIP"
 
   @Column('int')
-  filas: number;
+  filas!: number;
 
   @Column('int')
-  columnas: number;
+  columnas!: number;
 
   // Propiedad calculada/virtual o guardada para la capacidad total
   @Column('int')
-  capacidadTotal: number; 
+  capacidadTotal!: number;
 
   @OneToMany(() => Funcion, (funcion) => funcion.sala)
-  funciones: Funcion[];
+  funciones!: Funcion[];
 }

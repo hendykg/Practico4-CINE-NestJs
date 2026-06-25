@@ -1,10 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App.jsx'; // Al estar en la misma carpeta se usa ./
+import App from './App.jsx';
 
-// Estilos globales
 import 'bootstrap/dist/css/bootstrap.min.css';
-import './assets/css/index.css'; // Ruta corregida hacia tus assets internos
+import './assets/css/index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

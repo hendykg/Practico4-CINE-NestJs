@@ -1,21 +1,32 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { CreateReservaDto } from './dto/create-reserva.dto';
-import { DataStoreService } from '../../common/data-store.service';
 import { UsuarioAutenticado } from '../../common/app.types';
+import { Reserva } from './entities/reserva.entity';
+import { Funcion } from '../funciones/entities/funcione.entity';
 
 @Injectable()
 export class ReservasService {
-  constructor(private readonly dataStore: DataStoreService) {}
+  constructor(
+    @InjectRepository(Reserva)
+    private readonly reservasRepository: Repository<Reserva>,
+    @InjectRepository(Funcion)
+    private readonly funcionesRepository: Repository<Funcion>,
+  ) {}
 
-  create(createReservaDto: CreateReservaDto, usuario: UsuarioAutenticado) {
+  async create(createReservaDto: CreateReservaDto, usuario: UsuarioAutenticado) {
     const { funcionId, asientos } = createReservaDto;
-    const funcion = this.dataStore.getFunciones().find((item) => item.id === funcionId);
+    const funcion = await this.funcionesRepository.findOne({
+      where: { id: funcionId },
+      relations: { sala: true },
+    });
 
     if (!funcion) {
       throw new BadRequestException('La funcion seleccionada no existe.');
     }
 
-    const sala = this.dataStore.getSalas().find((item) => item.id === funcion.salaId);
+    const sala = funcion.sala;
 
     if (!sala) {
       throw new BadRequestException('La sala de la funcion no existe.');
@@ -40,9 +51,9 @@ export class ReservasService {
 
       asientosUnicos.add(key);
 
-      const yaReservado = this.dataStore
-        .getReservas()
-        .find((r) => r.funcionId === funcionId && r.fila === asiento.fila && r.columna === asiento.columna);
+      const yaReservado = await this.reservasRepository.findOne({
+        where: { funcionId, fila: asiento.fila, columna: asiento.columna },
+      });
 
       if (yaReservado) {
         throw new BadRequestException(
@@ -51,19 +62,28 @@ export class ReservasService {
       }
     }
 
-    const nuevasReservas = [];
-    for (const asiento of asientos) {
-      const nuevaReserva = {
-        id: this.dataStore.nextId(this.dataStore.getReservas()),
-        funcionId,
-        usuarioId: usuario.id,
-        fila: asiento.fila,
-        columna: asiento.columna,
-        fechaReserva: new Date().toISOString(),
-      };
+    let nuevasReservas: Reserva[];
 
-      this.dataStore.getReservas().push(nuevaReserva);
-      nuevasReservas.push(nuevaReserva);
+    try {
+      nuevasReservas = await this.reservasRepository.manager.transaction(async (manager) => {
+        const reservas = asientos.map((asiento) =>
+          manager.create(Reserva, {
+            funcionId,
+            usuarioId: usuario.id,
+            fila: asiento.fila,
+            columna: asiento.columna,
+            fechaReserva: new Date(),
+          }),
+        );
+
+        return manager.save(Reserva, reservas);
+      });
+    } catch (error) {
+      if (error instanceof QueryFailedError) {
+        throw new BadRequestException('Uno o mas asientos ya fueron reservados para esta funcion.');
+      }
+
+      throw error;
     }
 
     return {
@@ -73,47 +93,37 @@ export class ReservasService {
     };
   }
 
-  findPorUsuario(usuario: UsuarioAutenticado) {
-    return this.dataStore
-      .getReservas()
-      .filter((reserva) => reserva.usuarioId === usuario.id)
-      .map((reserva) => this.enriquecerReserva(reserva));
+  async findPorUsuario(usuario: UsuarioAutenticado) {
+    const reservas = await this.reservasRepository.find({
+      where: { usuarioId: usuario.id },
+      relations: { funcion: { pelicula: true, sala: true } },
+    });
+
+    return reservas.map((reserva) => this.enriquecerReserva(reserva));
   }
 
-  findAsientosOcupados(funcionId: number) {
-    return this.dataStore
-      .getReservas()
-      .filter((reserva) => reserva.funcionId === funcionId)
-      .map((reserva) => ({ fila: reserva.fila, columna: reserva.columna }));
+  async findAsientosOcupados(funcionId: number) {
+    const reservas = await this.reservasRepository.find({ where: { funcionId } });
+    return reservas.map((reserva) => ({ fila: reserva.fila, columna: reserva.columna }));
   }
 
-  remove(id: number, usuario: UsuarioAutenticado) {
-    const reservas = this.dataStore.getReservas();
-    const index = reservas.findIndex((reserva) => reserva.id === id);
+  async remove(id: number, usuario: UsuarioAutenticado) {
+    const reserva = await this.reservasRepository.findOne({ where: { id } });
 
-    if (index === -1) throw new NotFoundException('La reserva no existe.');
+    if (!reserva) throw new NotFoundException('La reserva no existe.');
 
-    if (usuario.rol !== 'administrador' && reservas[index].usuarioId !== usuario.id) {
+    if (usuario.rol !== 'administrador' && reserva.usuarioId !== usuario.id) {
       throw new BadRequestException('Solo puedes cancelar tus propias reservas.');
     }
 
-    reservas.splice(index, 1);
+    await this.reservasRepository.remove(reserva);
     return { mensaje: `Reserva #${id} cancelada correctamente.` };
   }
 
-  private enriquecerReserva(reserva: {
-    id: number;
-    funcionId: number;
-    usuarioId: number;
-    fila: number;
-    columna: number;
-    fechaReserva: string;
-  }) {
-    const funcion = this.dataStore.getFunciones().find((item) => item.id === reserva.funcionId);
-    const pelicula = funcion
-      ? this.dataStore.getPeliculas().find((item) => item.id === funcion.peliculaId)
-      : undefined;
-    const sala = funcion ? this.dataStore.getSalas().find((item) => item.id === funcion.salaId) : undefined;
+  private enriquecerReserva(reserva: Reserva) {
+    const funcion = reserva.funcion;
+    const pelicula = funcion?.pelicula;
+    const sala = funcion?.sala;
 
     return {
       ...reserva,

@@ -1,25 +1,24 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DataStoreService } from '../../common/data-store.service';
-import { Pelicula } from '../../common/app.types';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Pelicula } from './entities/pelicula.entity';
 
 @Injectable()
 export class PeliculasService {
-  constructor(private readonly dataStore: DataStoreService) {}
+  constructor(
+    @InjectRepository(Pelicula)
+    private readonly peliculasRepository: Repository<Pelicula>,
+  ) {}
 
-  create(nuevaPelicula: Omit<Pelicula, 'id'>) {
+  async create(nuevaPelicula: Omit<Pelicula, 'id' | 'funciones'>) {
     this.validarPelicula(nuevaPelicula, true);
 
-    const pelicula = {
-      id: this.dataStore.nextId(this.dataStore.getPeliculas()),
-      ...nuevaPelicula,
-    };
-
-    this.dataStore.getPeliculas().push(pelicula);
-    return pelicula;
+    const pelicula = this.peliculasRepository.create(nuevaPelicula);
+    return this.peliculasRepository.save(pelicula);
   }
 
-  findAll(nombre?: string, genero?: string) {
-    let resultado = [...this.dataStore.getPeliculas()];
+  async findAll(nombre?: string, genero?: string) {
+    let resultado = await this.peliculasRepository.find();
 
     if (nombre) {
       const nombreNormalizado = nombre.trim().toLowerCase();
@@ -34,69 +33,51 @@ export class PeliculasService {
     return resultado;
   }
 
-  findOne(id: number) {
-    const pelicula = this.dataStore.getPeliculas().find((p) => p.id === id);
+  async findOne(id: number) {
+    const pelicula = await this.peliculasRepository.findOne({
+      where: { id },
+      relations: { funciones: { sala: true } },
+    });
 
     if (!pelicula) {
       throw new NotFoundException('Pelicula no encontrada.');
     }
 
-    const funciones = this.dataStore
-      .getFunciones()
-      .filter((funcion) => funcion.peliculaId === pelicula.id)
-      .sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime())
-      .map((funcion) => ({
-        ...funcion,
-        sala: this.dataStore.getSalas().find((sala) => sala.id === funcion.salaId) ?? null,
-      }));
+    const funciones = [...(pelicula.funciones ?? [])].sort(
+      (a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime(),
+    );
 
     return { ...pelicula, funciones };
   }
 
-  update(id: number, updatePeliculaDto: Partial<Omit<Pelicula, 'id'>>) {
-    const peliculas = this.dataStore.getPeliculas();
-    const index = peliculas.findIndex((p) => p.id === id);
+  async update(id: number, updatePeliculaDto: Partial<Omit<Pelicula, 'id' | 'funciones'>>) {
+    const pelicula = await this.peliculasRepository.findOne({ where: { id } });
 
-    if (index === -1) {
+    if (!pelicula) {
       throw new NotFoundException('Pelicula no encontrada.');
     }
 
-    const peliculaActualizada = { ...peliculas[index], ...updatePeliculaDto };
+    const peliculaActualizada = this.peliculasRepository.merge(pelicula, updatePeliculaDto);
     this.validarPelicula(peliculaActualizada, false);
 
-    peliculas[index] = peliculaActualizada;
-    return peliculas[index];
+    return this.peliculasRepository.save(peliculaActualizada);
   }
 
-  remove(id: number) {
-    const peliculas = this.dataStore.getPeliculas();
-    const funciones = this.dataStore.getFunciones();
-    const reservas = this.dataStore.getReservas();
-    const index = peliculas.findIndex((p) => p.id === id);
+  async remove(id: number) {
+    const pelicula = await this.peliculasRepository.findOne({ where: { id } });
 
-    if (index === -1) {
+    if (!pelicula) {
       throw new NotFoundException('Pelicula no encontrada.');
     }
 
-    const funcionesDePelicula = funciones.filter((funcion) => funcion.peliculaId === id).map((funcion) => funcion.id);
-
-    for (let i = reservas.length - 1; i >= 0; i -= 1) {
-      if (funcionesDePelicula.includes(reservas[i].funcionId)) {
-        reservas.splice(i, 1);
-      }
-    }
-
-    for (let i = funciones.length - 1; i >= 0; i -= 1) {
-      if (funciones[i].peliculaId === id) {
-        funciones.splice(i, 1);
-      }
-    }
-
-    peliculas.splice(index, 1);
+    await this.peliculasRepository.remove(pelicula);
     return { mensaje: `Pelicula #${id} eliminada correctamente.` };
   }
 
-  private validarPelicula(pelicula: Partial<Omit<Pelicula, 'id'>>, requiereImagen: boolean) {
+  private validarPelicula(
+    pelicula: Partial<Omit<Pelicula, 'id' | 'funciones'>>,
+    requiereImagen: boolean,
+  ): void {
     if (!pelicula.titulo?.trim()) {
       throw new BadRequestException('El titulo es obligatorio.');
     }

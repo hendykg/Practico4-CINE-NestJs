@@ -1,88 +1,91 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateFuncioneDto } from './dto/create-funcione.dto';
 import { UpdateFuncioneDto } from './dto/update-funcione.dto';
-import { DataStoreService } from '../../common/data-store.service';
-import { Funcion } from '../../common/app.types';
+import { Funcion } from './entities/funcione.entity';
+import { Pelicula } from '../peliculas/entities/pelicula.entity';
+import { Sala } from '../salas/entities/sala.entity';
 
 @Injectable()
 export class FuncionesService {
-  constructor(private readonly dataStore: DataStoreService) {}
+  constructor(
+    @InjectRepository(Funcion)
+    private readonly funcionesRepository: Repository<Funcion>,
+    @InjectRepository(Pelicula)
+    private readonly peliculasRepository: Repository<Pelicula>,
+    @InjectRepository(Sala)
+    private readonly salasRepository: Repository<Sala>,
+  ) {}
 
-  create(createFuncioneDto: CreateFuncioneDto) {
+  async create(createFuncioneDto: CreateFuncioneDto) {
     this.validarDatosBasicos(createFuncioneDto.fechaHora, createFuncioneDto.precioEntrada);
-    this.validarReferencias(createFuncioneDto.peliculaId, createFuncioneDto.salaId);
-    this.validarSuperposicion(createFuncioneDto);
+    await this.validarReferencias(createFuncioneDto.peliculaId, createFuncioneDto.salaId);
+    await this.validarSuperposicion(createFuncioneDto);
 
-    const nueva: Funcion = {
-      id: this.dataStore.nextId(this.dataStore.getFunciones()),
+    const nueva = this.funcionesRepository.create({
       ...createFuncioneDto,
-      fechaHora: new Date(createFuncioneDto.fechaHora).toISOString(),
-    };
+      fechaHora: new Date(createFuncioneDto.fechaHora),
+    });
 
-    this.dataStore.getFunciones().push(nueva);
-    return nueva;
+    const guardada = await this.funcionesRepository.save(nueva);
+    return this.findOne(guardada.id);
   }
 
-  findAll(peliculaId?: number) {
-    let funciones = [...this.dataStore.getFunciones()];
-
-    if (peliculaId) {
-      funciones = funciones.filter((funcion) => funcion.peliculaId === peliculaId);
-    }
+  async findAll(peliculaId?: number) {
+    const funciones = await this.funcionesRepository.find({
+      where: peliculaId ? { peliculaId } : undefined,
+      relations: { pelicula: true, sala: true },
+    });
 
     return funciones
       .sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime())
       .map((funcion) => this.enriquecerFuncion(funcion));
   }
 
-  findOne(id: number) {
-    const funcion = this.dataStore.getFunciones().find((item) => item.id === id);
+  async findOne(id: number) {
+    const funcion = await this.funcionesRepository.findOne({
+      where: { id },
+      relations: { pelicula: true, sala: true },
+    });
     if (!funcion) throw new NotFoundException('Funcion no encontrada.');
     return this.enriquecerFuncion(funcion);
   }
 
-  update(id: number, updateFuncioneDto: UpdateFuncioneDto) {
-    const funciones = this.dataStore.getFunciones();
-    const index = funciones.findIndex((item) => item.id === id);
+  async update(id: number, updateFuncioneDto: UpdateFuncioneDto) {
+    const funcion = await this.funcionesRepository.findOne({ where: { id } });
 
-    if (index === -1) throw new NotFoundException('Funcion no encontrada.');
+    if (!funcion) throw new NotFoundException('Funcion no encontrada.');
 
-    const actualizada = {
-      ...funciones[index],
+    const actualizada = this.funcionesRepository.merge(funcion, {
       ...updateFuncioneDto,
       fechaHora:
         updateFuncioneDto.fechaHora !== undefined
-          ? new Date(updateFuncioneDto.fechaHora).toISOString()
-          : funciones[index].fechaHora,
-    };
+          ? new Date(updateFuncioneDto.fechaHora)
+          : funcion.fechaHora,
+    });
 
     this.validarDatosBasicos(actualizada.fechaHora, actualizada.precioEntrada);
-    this.validarReferencias(actualizada.peliculaId, actualizada.salaId);
-    this.validarSuperposicion(actualizada, id);
+    await this.validarReferencias(actualizada.peliculaId, actualizada.salaId);
+    await this.validarSuperposicion(actualizada, id);
 
-    funciones[index] = actualizada;
-    return this.enriquecerFuncion(actualizada);
+    await this.funcionesRepository.save(actualizada);
+    return this.findOne(id);
   }
 
-  remove(id: number) {
-    const funciones = this.dataStore.getFunciones();
-    const reservas = this.dataStore.getReservas();
-    const index = funciones.findIndex((item) => item.id === id);
-    if (index === -1) throw new NotFoundException('Funcion no encontrada.');
+  async remove(id: number) {
+    const funcion = await this.funcionesRepository.findOne({ where: { id } });
+    if (!funcion) throw new NotFoundException('Funcion no encontrada.');
 
-    for (let i = reservas.length - 1; i >= 0; i -= 1) {
-      if (reservas[i].funcionId === id) {
-        reservas.splice(i, 1);
-      }
-    }
-
-    funciones.splice(index, 1);
+    await this.funcionesRepository.remove(funcion);
     return { mensaje: `Funcion #${id} eliminada correctamente.` };
   }
 
-  private validarReferencias(peliculaId: number, salaId: number) {
-    const pelicula = this.dataStore.getPeliculas().find((item) => item.id === peliculaId);
-    const sala = this.dataStore.getSalas().find((item) => item.id === salaId);
+  private async validarReferencias(peliculaId: number, salaId: number): Promise<void> {
+    const [pelicula, sala] = await Promise.all([
+      this.peliculasRepository.findOne({ where: { id: peliculaId } }),
+      this.salasRepository.findOne({ where: { id: salaId } }),
+    ]);
 
     if (!pelicula) {
       throw new BadRequestException('La pelicula seleccionada no existe.');
@@ -93,7 +96,7 @@ export class FuncionesService {
     }
   }
 
-  private validarDatosBasicos(fechaHora: string, precioEntrada: number) {
+  private validarDatosBasicos(fechaHora: string | Date, precioEntrada: number): void {
     if (Number.isNaN(new Date(fechaHora).getTime())) {
       throw new BadRequestException('La fecha y hora de la funcion no es valida.');
     }
@@ -103,8 +106,11 @@ export class FuncionesService {
     }
   }
 
-  private validarSuperposicion(funcion: CreateFuncioneDto | Funcion, funcionId?: number) {
-    const pelicula = this.dataStore.getPeliculas().find((item) => item.id === funcion.peliculaId);
+  private async validarSuperposicion(
+    funcion: CreateFuncioneDto | Funcion,
+    funcionId?: number,
+  ): Promise<void> {
+    const pelicula = await this.peliculasRepository.findOne({ where: { id: funcion.peliculaId } });
 
     if (!pelicula) {
       throw new BadRequestException('La pelicula seleccionada no existe.');
@@ -113,12 +119,15 @@ export class FuncionesService {
     const inicioNueva = new Date(funcion.fechaHora);
     const finNueva = new Date(inicioNueva.getTime() + pelicula.duracion * 60000);
 
-    const cruce = this.dataStore.getFunciones().find((item) => {
-      if (funcionId && item.id === funcionId) return false;
-      if (item.salaId !== funcion.salaId) return false;
+    const funcionesEnSala = await this.funcionesRepository.find({
+      where: { salaId: funcion.salaId },
+      relations: { pelicula: true },
+    });
 
-      const peliculaExistente = this.dataStore.getPeliculas().find((p) => p.id === item.peliculaId);
-      const duracionExistente = peliculaExistente?.duracion ?? 0;
+    const cruce = funcionesEnSala.find((item) => {
+      if (funcionId && item.id === funcionId) return false;
+
+      const duracionExistente = item.pelicula?.duracion ?? 0;
       const inicioExistente = new Date(item.fechaHora);
       const finExistente = new Date(inicioExistente.getTime() + duracionExistente * 60000);
 
@@ -130,11 +139,11 @@ export class FuncionesService {
     }
   }
 
-  private enriquecerFuncion(funcion: Funcion) {
+  private enriquecerFuncion(funcion: Funcion): Funcion {
     return {
       ...funcion,
-      pelicula: this.dataStore.getPeliculas().find((item) => item.id === funcion.peliculaId) ?? null,
-      sala: this.dataStore.getSalas().find((item) => item.id === funcion.salaId) ?? null,
+      pelicula: funcion.pelicula,
+      sala: funcion.sala,
     };
   }
 }

@@ -6,15 +6,21 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { DataStoreService } from './data-store.service';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { Sesion } from '../auth/entities/sesion.entity';
+import { Usuario } from '../auth/entities/auth.entity';
 import { ROLES_KEY } from './roles.decorator';
 import { RolUsuario } from './app.types';
 
 @Injectable()
 export class AppAuthGuard implements CanActivate {
-  constructor(private readonly dataStore: DataStoreService) {}
+  constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const authorization = request.headers.authorization;
 
@@ -28,13 +34,31 @@ export class AppAuthGuard implements CanActivate {
       throw new UnauthorizedException('Token de acceso invalido.');
     }
 
-    const usuario = this.dataStore.buscarUsuarioPorToken(token);
+    const sesionesRepository = this.dataSource.getRepository(Sesion);
+    const usuariosRepository = this.dataSource.getRepository(Usuario);
+    const sesion = await sesionesRepository.findOne({ where: { token } });
+
+    if (!sesion) {
+      throw new UnauthorizedException('La sesion no es valida o expiro.');
+    }
+
+    if (sesion.expiraEn.getTime() <= Date.now()) {
+      await sesionesRepository.delete({ token });
+      throw new UnauthorizedException('La sesion no es valida o expiro.');
+    }
+
+    const usuario = await usuariosRepository.findOne({ where: { id: sesion.usuarioId } });
 
     if (!usuario) {
       throw new UnauthorizedException('La sesion no es valida o expiro.');
     }
 
-    request.user = this.dataStore.sanitizarUsuario(usuario);
+    request.user = {
+      id: usuario.id,
+      nombre: usuario.nombre,
+      email: usuario.email,
+      rol: usuario.rol,
+    };
     request.authToken = token;
 
     return true;
@@ -43,10 +67,7 @@ export class AppAuthGuard implements CanActivate {
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(
-    private readonly reflector: Reflector,
-    private readonly dataStore: DataStoreService,
-  ) {}
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const roles = this.reflector.getAllAndOverride<RolUsuario[]>(ROLES_KEY, [
@@ -64,9 +85,7 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('No tienes permisos para acceder.');
     }
 
-    const usuario = this.dataStore.getUsuarios().find((item) => item.id === request.user.id);
-
-    if (!usuario || !roles.includes(usuario.rol)) {
+    if (!roles.includes(request.user.rol)) {
       throw new ForbiddenException('No tienes permisos para realizar esta accion.');
     }
 
